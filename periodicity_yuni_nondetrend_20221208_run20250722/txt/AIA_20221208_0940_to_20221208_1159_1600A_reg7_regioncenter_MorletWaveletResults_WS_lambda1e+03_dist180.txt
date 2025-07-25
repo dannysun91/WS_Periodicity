@@ -1,0 +1,7 @@
+Morlet wavelet, w_0 = 6
+Estimated AR1 coefficient: 0.84
+GLOBAL PERIODICITIES: Period; Wavelet power/WN power; Peak power/RN power
+0.41 min; 0.19; 1.69
+4.60 min; 11.29; 2.05
+28.39 min; 0.00; 0.00
+67.53 min; 0.00; 0.00

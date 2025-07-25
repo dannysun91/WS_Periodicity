@@ -1,0 +1,8 @@
+Morlet wavelet, w_0 = 6
+Estimated AR1 coefficient: INVALID
+GLOBAL PERIODICITIES: Period; Wavelet power/WN power
+7.21 min; 0.33
+15.72 min; 2.05
+34.30 min; 11.82
+50.65 min; 20.33
+101.30 min; 86.29
