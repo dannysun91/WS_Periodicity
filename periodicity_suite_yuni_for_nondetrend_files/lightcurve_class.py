@@ -587,8 +587,8 @@ class LightCurve:
       alpha=0.
       red_noise_ok=bool(0)
     #Performing the wavelet transform according to the parameters above
-    wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, t_step, freq_step, scale_0,
-                          num_octaves/freq_step, mother)
+    wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, dt=t_step, dj=freq_step, s0=scale_0,
+                          J=-1, mother=mother)
     #Calculating the wavelet and Fourier power spectra
     wave_power = (np.abs(wave)) ** 2
     periods = 1 / freqs
@@ -795,6 +795,7 @@ class LightCurve:
     #Specifying frequency resolution at 16 sub-octaves per octave
     freq_step = 1 / 16
     num_octaves = 8
+    # print(rf'frequency = {}')
     #Estimating the Lag-1 autocorrelation for red noise modeling
     try:
       alpha = pycwt.ar1(power)[0]
@@ -819,8 +820,8 @@ class LightCurve:
       print(num_octaves)
       print(f"mother")
       print(mother)
-    wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, t_step, freq_step, scale_0,
-                          num_octaves/freq_step, mother)
+    wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, dt=t_step, dj=freq_step, s0=scale_0,
+                          J=-1, mother=mother)
     #Calculating the wavelet and Fourier power spectra
     wave_power = (np.abs(wave)) ** 2
     periods = 1 / freqs
