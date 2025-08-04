@@ -22,7 +22,7 @@ def main():
     bool_fname = bool(int(input('Would you like to input filenames to skip questions? '+\
       'Enter 0 for no, 1 for yes\n')))
     if bool_fname:
-      default_path='/home/sanakettu/research/umn/python/periodicity/data/lightcurve_examples/regularized/'
+      default_path='/Users/dannysun/Desktop/WS_Periodicity/periodicity_suite_yuni_for_nondetrend_files/data/lightcurve_examples/stereo_from_cindy_20250630'
       print('The default directory within which to seek data is: ',default_path)
       #allowing the user to put in entire directories to analyze
       dir = bool(int(input('Would you like to specify a different directory? '+\
