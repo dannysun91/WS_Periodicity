@@ -380,7 +380,7 @@ def prompt_methods():
     bool_fft=bool(1)
     method_params[3].append(bool_fft)   # Yes to FFT
     method_params[3].append(bool(1))   # Yes to saving text file of FFT data
-    bool_show=bool(0)   # Do not display (Lily's computer doesn't like this)
+    bool_show=bool(1)   # Do not display (Lily's computer doesn't like this)
     bool_save=bool(1)   # Do save
   else:
     #First asks about a full summary plot
