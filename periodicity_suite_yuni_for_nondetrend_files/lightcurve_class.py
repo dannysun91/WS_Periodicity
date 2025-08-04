@@ -588,7 +588,7 @@ class LightCurve:
       red_noise_ok=bool(0)
     #Performing the wavelet transform according to the parameters above
     wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, dt=t_step, dj=freq_step, s0=scale_0,
-                          J=-1, mother=mother)
+                          J=-1, wavelet=mother)
     #Calculating the wavelet and Fourier power spectra
     wave_power = (np.abs(wave)) ** 2
     periods = 1 / freqs
@@ -821,7 +821,7 @@ class LightCurve:
       print(f"mother")
       print(mother)
     wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, dt=t_step, dj=freq_step, s0=scale_0,
-                          J=-1, mother=mother)
+                          J=-1, wavelet=mother)
     #Calculating the wavelet and Fourier power spectra
     wave_power = (np.abs(wave)) ** 2
     periods = 1 / freqs
