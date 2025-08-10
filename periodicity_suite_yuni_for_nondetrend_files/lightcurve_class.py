@@ -701,7 +701,6 @@ class LightCurve:
           loc='lower right', fontsize='xx-small')
     dxx.set_title('Global wavelet power spectrum\nw/ COI Consideration')
     dxx.set_xlabel('Power')
-    txt_COI = "\nGLOBAL PERIODICITIES (w/ COI consideration):"
 
     #Producing a txt report. All identifying information is in the file name/path
     if wavelet_type == 'Morlet':
@@ -728,30 +727,30 @@ class LightCurve:
           txt += f"\n{period:0.2f} min; {wn_ratio:0.2f}; {rn_ratio:0.2f}"
         else:
           txt += f"\n{period:0.2f} min; {wn_ratio:0.2f}"
+
+    txt += "\nGLOBAL PERIODICITIES (w/ COI consideration):"
+    if len(all_peak_indices_COImask) == 0:
+      txt += '\nNone'
+    else:
       for i in all_peak_indices_COImask:
         period = periods_min[i]
         wn_ratio = var * glbl_power_COImask[i] / white_sig[i]
         if red_noise_ok:
           rn_ratio = var * glbl_power_COImask[i] / red_sig[i]
-          txt_COI += f"\n{period:0.2f} min; {wn_ratio:0.2f}; {rn_ratio:0.2f}"
+          txt += f"\n{period:0.2f} min; {wn_ratio:0.2f}; {rn_ratio:0.2f}"
         else:
-          txt_COI += f"\n{period:0.2f} min; {wn_ratio:0.2f}"
+          txt += f"\n{period:0.2f} min; {wn_ratio:0.2f}"
     #Saving results if requested
     if save_results:
       txt_fname, plot_fname = write_fnames(self, f'{wavelet_type}Wavelet',smoothing)
       write_txt_file(txt, txt_fname)
-      txt_fname_COI, _ = write_fnames(self, f'{wavelet_type}Wavelet_COI',smoothing)
-      write_txt_file(txt_COI, txt_fname_COI)
       plt.savefig(plot_fname)
     #Showing results if requested
     if save_txt:
       txt_fname, _= write_fnames(self, f'{wavelet_type}Wavelet',smoothing)
       write_txt_file(txt, txt_fname)
-      txt_fname_COI, _ = write_fnames(self, f'{wavelet_type}Wavelet_COI',smoothing)
-      write_txt_file(txt_COI, txt_fname_COI)
     if show_results:
       print(txt)
-      print(txt_COI)
       plt.show()
     plt.close()
     return period_ax_range
