@@ -506,12 +506,20 @@ class LightCurve:
       alpha=0.
       red_noise_ok=bool(0)
     #Performing the wavelet transform according to the parameters above
-    wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, t_step, freq_step, scale_0,
-                          num_octaves/freq_step, mother)
+    wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, dt=t_step, dj=freq_step, s0=scale_0,
+                          J=-1, wavelet=mother)
     #Calculating the wavelet and Fourier power spectra
     wave_power = (np.abs(wave)) ** 2
     periods = 1 / freqs
     periods_min = [p / 60 for p in periods]
+
+    wave_power_COImask = (np.abs(wave)) ** 2
+    coi_matrix = np.tile(coi, (len(periods), 1)) # make an array coi 
+    periods_matrix = np.tile(periods[:, np.newaxis], (1, len(coi))) # make array of periods
+    mask = periods_matrix >= coi_matrix
+    wave_power_COImask[mask] = np.nan
+
+
     #Generating significance levels for the wavelet power spectrum
     #The power is significant when wave_power / sig95 > 1
     sig = pycwt.significance(1.0, t_step, scales, 0, alpha, significance_level=0.95,
@@ -520,6 +528,9 @@ class LightCurve:
     sig95 = wave_power / sig95
     #Calculating the global wavelet spectrum and significance levels for red and white noise
     glbl_power = wave_power.mean(axis=1)
+    glbl_power_COImask = np.nanmean(wave_power_COImask,axis=1)
+
+
     dof = len(power) - scales #Correction for edge effects
     white_sig = pycwt.significance(var, t_step, scales, 1, 0, significance_level = 0.95,
                     dof=dof, wavelet=mother)[0]
@@ -529,16 +540,16 @@ class LightCurve:
     #Creating the figure combining the raw lightcurve, wavelet power spectrum, and global wps
     plt.close('all')
     plt.ioff()
-    figprops = dict(figsize=(11, 8), dpi=721)
+    figprops = dict(figsize=(11, 8), dpi=72)
     _ = plt.figure(**figprops, facecolor='white')
     #Plotting the raw lightcurve as the first subplot
-    axx = plt.axes([0.1, 0.65, 0.65, 0.3])
+    axx = plt.axes([0.05, 0.65, 0.55, 0.3])
     axx.plot(time, power_norm, color='k')
     axx.set_title(f'{self}; {self.get_param_msg()}; {self.get_time_str()}\nLightcurve')
     axx.set_ylabel('Normalized Power')
     #Plotting the normalized wavelet power spectrum with significance level contour
     #lines and the cone of influence marked as the second subplot
-    bxx = plt.axes([0.1, 0.1, 0.65, 0.45], sharex=axx)
+    bxx = plt.axes([0.05, 0.1, 0.55, 0.45], sharex=axx)
     levels = [0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16]
     bxx.contourf(time, np.log2(periods_min), np.log2(wave_power), np.log2(levels),
             extend='both', cmap=plt.cm.inferno)
@@ -569,7 +580,7 @@ class LightCurve:
     all_peak_indices = [i for i in find_peaks(glbl_power)[0]]
     white_peak_indices = [i for i in all_peak_indices if var * glbl_power[i] > white_sig[i]]
     #Plotting the global wavelet power spectrum with its significance levels as the 3rd subplot
-    cxx = plt.axes([0.8, 0.1, 0.15, 0.45], sharey = bxx)
+    cxx = plt.axes([0.64, 0.1, 0.15, 0.45], sharey = bxx)
     for i in white_peak_indices:
       cxx.scatter(var * glbl_power[i], np.log2(periods_min[i]), marker='o', color='#696969')
     line1, = cxx.plot(var * glbl_power, np.log2(periods_min), 'k-')
@@ -586,6 +597,29 @@ class LightCurve:
           loc='lower right', fontsize='xx-small')
     cxx.set_title('Global wavelet power spectrum')
     cxx.set_xlabel('Power')
+    
+    #Finding the peaks in the global wavelet power spectrum
+    all_peak_indices_COImask = [i for i in find_peaks(glbl_power_COImask)[0]]
+    white_peak_indices_COImask = [i for i in all_peak_indices_COImask if var * glbl_power_COImask[i] > white_sig[i]]
+    #Plotting the global wavelet power spectrum with its significance levels as the 3rd subplot
+    dxx = plt.axes([0.82, 0.1, 0.15, 0.45], sharey=cxx)
+    for i in white_peak_indices_COImask:
+      dxx.scatter(var * glbl_power_COImask[i], np.log2(periods_min[i]), marker='o', color='#696969')
+    line1_COImask, = dxx.plot(var * glbl_power_COImask, np.log2(periods_min), 'k-')
+    line3_COImask, = dxx.plot(white_sig, np.log2(periods_min), '--', color='#696969')
+    if red_noise_ok:
+      red_peak_indices_COImask = [i for i in all_peak_indices_COImask if var * glbl_power_COImask[i] > red_sig[i]]
+      for i in red_peak_indices_COImask:
+        dxx.scatter(var * glbl_power_COImask[i], np.log2(periods_min[i]), marker='o', color = '#FF6666')
+      line2_COImask, = dxx.plot(red_sig, np.log2(periods_min), '--', color='#FF6666')
+      dxx.legend([line1_COImask, line2_COImask, line3_COImask], ['Global Wavelet Power', 'Red Noise', 'White Noise'],
+          loc='lower right', fontsize='xx-small')
+    else:
+      dxx.legend([line1_COImask, line3_COImask], ['Global Wavelet Power', 'White Noise'],
+          loc='lower right', fontsize='xx-small')
+    dxx.set_title('Global wavelet power spectrum\nw/ COI Consideration')
+    dxx.set_xlabel('Power')
+
     #Producing a txt report. All identifying information is in the file name/path
     if wavelet_type == 'Morlet':
       txt = "Morlet wavelet, w_0 = 6"
@@ -608,6 +642,18 @@ class LightCurve:
         wn_ratio = var * glbl_power[i] / white_sig[i]
         if red_noise_ok:
           rn_ratio = var * glbl_power[i] / red_sig[i]
+          txt += f"\n{period:0.2f} min; {wn_ratio:0.2f}; {rn_ratio:0.2f}"
+        else:
+          txt += f"\n{period:0.2f} min; {wn_ratio:0.2f}"
+    txt += "\nGLOBAL PERIODICITIES (w/ COI consideration):"
+    if len(all_peak_indices_COImask) == 0:
+      txt += '\nNone'
+    else:
+      for i in all_peak_indices_COImask:
+        period = periods_min[i]
+        wn_ratio = var * glbl_power_COImask[i] / white_sig[i]
+        if red_noise_ok:
+          rn_ratio = var * glbl_power_COImask[i] / red_sig[i]
           txt += f"\n{period:0.2f} min; {wn_ratio:0.2f}; {rn_ratio:0.2f}"
         else:
           txt += f"\n{period:0.2f} min; {wn_ratio:0.2f}"
@@ -714,12 +760,20 @@ class LightCurve:
       alpha=0.
       red_noise_ok=bool(0)
     #Performing the wavelet transform according to the parameters above
-    wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, t_step, freq_step, scale_0,
-                          num_octaves/freq_step, mother)
+    wave, scales, freqs, coi, _, _ = pycwt.cwt(power_norm, dt=t_step, dj=freq_step, s0=scale_0,
+                         J=-1, wavelet=mother)
     #Calculating the wavelet and Fourier power spectra
     wave_power = (np.abs(wave)) ** 2
     periods = 1 / freqs
     periods_min = [p / 60 for p in periods]
+
+    wave_power_COImask = (np.abs(wave)) ** 2
+    coi_matrix = np.tile(coi, (len(periods), 1)) # make an array coi 
+    periods_matrix = np.tile(periods[:, np.newaxis], (1, len(coi))) # make array of periods
+    mask = periods_matrix >= coi_matrix
+    wave_power_COImask[mask] = np.nan
+
+
     #Generating significance levels for the wavelet power spectrum
     #The power is significant when wave_power / sig95 > 1
     sig = pycwt.significance(1.0, t_step, scales, 0, alpha, significance_level=0.95,
@@ -728,6 +782,9 @@ class LightCurve:
     sig95 = wave_power / sig95
     #Calculating the global wavelet spectrum and significance levels for red and white noise
     glbl_power = wave_power.mean(axis=1)
+    glbl_power_COImask = np.nanmean(wave_power_COImask,axis=1)
+
+
     dof = len(power) - scales #Correction for edge effects
     white_sig = pycwt.significance(var, t_step, scales, 1, 0, significance_level = 0.95,
                     dof=dof, wavelet=mother)[0]
@@ -737,10 +794,10 @@ class LightCurve:
     #Creating the figure combining the raw lightcurve, wavelet power spectrum, and global wps
     plt.close('all')
     plt.ioff()
-    figprops = dict(figsize=(11, 8), dpi=721)
+    figprops = dict(figsize=(11, 8), dpi=72)
     _ = plt.figure(**figprops, facecolor='white')
     #Plotting the raw lightcurve as the first subplot
-    axx = plt.axes([0.05, 0.55, 0.58, 0.35])
+    axx = plt.axes([0.05, 0.55, 0.5, 0.35])
     axx.plot(time, power_norm, color='k')
     if self.source[:3].upper() == 'AIA':
       title_str = self.source +' reg'+ str(self.region)+' '+str(self.wavelength)+'$\AA$ '+\
@@ -764,7 +821,7 @@ class LightCurve:
     axx.legend()
     #Plotting the normalized wavelet power spectrum with significance level contour
     #lines and the cone of influence marked as the second subplot
-    bxx = plt.axes([0.05, 0.05, 0.58, 0.4], sharex=axx)
+    bxx = plt.axes([0.05, 0.05, 0.5, 0.4], sharex=axx)
     levels = [0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16]
     bxx.contourf(time, np.log2(periods_min), np.log2(wave_power), np.log2(levels),
             extend='both', cmap=plt.cm.inferno)
@@ -795,7 +852,7 @@ class LightCurve:
     all_peak_indices = [i for i in find_peaks(glbl_power)[0]]
     white_peak_indices = [i for i in all_peak_indices if var * glbl_power[i] > white_sig[i]]
     #Plotting the global wavelet power spectrum with its significance levels as the 3rd subplot
-    cxx = plt.axes([0.74, 0.05, 0.21, 0.4], sharey = bxx)
+    cxx = plt.axes([0.64, 0.05, 0.15, 0.4], sharey = bxx)
     for i in white_peak_indices:
       cxx.scatter(var * glbl_power[i], np.log2(periods_min[i]), marker='o', color='#696969')
     line1, = cxx.plot(var * glbl_power, np.log2(periods_min), 'k-')
@@ -805,14 +862,33 @@ class LightCurve:
       for i in red_peak_indices:
         cxx.scatter(var * glbl_power[i], np.log2(periods_min[i]), marker='o', color = '#FF6666') 
       line2, = cxx.plot(red_sig, np.log2(periods_min), '--', color='#FF6666')
+    #Finding the peaks in the global wavelet power spectrum
+    all_peak_indices_COImask = [i for i in find_peaks(glbl_power_COImask)[0]]
+    white_peak_indices_COImask = [i for i in all_peak_indices_COImask if var * glbl_power_COImask[i] > white_sig[i]]
+    #Plotting the global wavelet power spectrum with its significance levels as the 3rd subplot
+    dxx = plt.axes([0.82, 0.05, 0.15, 0.4], sharey=cxx)
+    for i in white_peak_indices_COImask:
+      dxx.scatter(var * glbl_power_COImask[i], np.log2(periods_min[i]), marker='o', color='#696969')
+    line1_COImask, = dxx.plot(var * glbl_power_COImask, np.log2(periods_min), 'k-')
+    line3_COImask, = dxx.plot(white_sig, np.log2(periods_min), '--', color='#696969')
+    if red_noise_ok:
+      red_peak_indices_COImask = [i for i in all_peak_indices_COImask if var * glbl_power_COImask[i] > red_sig[i]]
+      for i in red_peak_indices_COImask:
+        dxx.scatter(var * glbl_power_COImask[i], np.log2(periods_min[i]), marker='o', color = '#FF6666')
+      line2_COImask, = dxx.plot(red_sig, np.log2(periods_min), '--', color='#FF6666')
+   
+   
    #Adding in the peak finder results
     _, _, pf_period, pf_std = self.peak_finder(180, show_results=False)
     log_period_min = np.log2(pf_period / 60)
     log_plus = np.log2((pf_period + pf_std) / 60) - log_period_min
     log_minus = log_period_min - np.log2((pf_period - pf_std) / 60)
     cxx.set_xlim([-0.1 * var * max(glbl_power), 1.2 * var * max(glbl_power)])
+    dxx.set_xlim([-0.1 * var * max(glbl_power_COImask), 1.2 * var * max(glbl_power_COImask)])    
     line4, = cxx.plot(cxx.get_xlim(), [log_period_min, log_period_min], 'b')
+    line4_COImask, = dxx.plot(dxx.get_xlim(), [log_period_min, log_period_min], 'b')
     cxx.errorbar(0, log_period_min, [[log_minus], [log_plus]], ecolor='b', capsize=5, markersize=0)
+    dxx.errorbar(0, log_period_min, [[log_minus], [log_plus]], ecolor='b', capsize=5, markersize=0)    
     if self.source[:3].upper() == 'PSP':
       loc = 'upper left'
     else:
@@ -821,11 +897,20 @@ class LightCurve:
       cxx.legend([line1, line4, line2, line3], ['Global Wavelet Power', 'Peak Finder Period', 
                           'Red Noise', 'White Noise'],
           loc=loc, prop={'size':6})
+      dxx.legend([line1_COImask, line4_COImask, line2_COImask, line3_COImask], ['Global Wavelet Power', 'Peak Finder Period', 
+                          'Red Noise', 'White Noise'],
+          loc=loc, prop={'size':6})
     else:
       cxx.legend([line1, line4, line3], ['Global Wavelet Power', 'Peak Finder Period',
                           'White Noise'],
           loc=loc, prop={'size':6})
-    cxx.tick_params(axis='y', which='major', labelsize=14)
+      dxx.legend([line1_COImask, line4_COImask, line3_COImask], ['Global Wavelet Power', 'Peak Finder Period',
+                          'White Noise'],
+          loc=loc, prop={'size':6})
+    cxx.tick_params(axis='y', which='major', labelsize=12)
+    dxx.tick_params(axis='y', which='major', labelsize=12)
+    cxx.set_title("Global Wavelet Power Spectrum")
+    dxx.set_title("Global Wavelet Power Spectrum\nw/ COI Consideration")
     #Calculating the FFT
     #Subtracting the mean to remove the 0-frequency component
     balanced_data = self.power - np.mean(self.power)
@@ -852,7 +937,7 @@ class LightCurve:
     periods = 1 / freq_bin[1:] #seconds
     periods /= 60 #minutes
     #Plotting the FFT spectrum in the top right
-    fxx = plt.axes([0.74, 0.55, 0.21, 0.35])
+    fxx = plt.axes([0.64, 0.55, 0.21, 0.35])
     fxx.plot(fft_power[1:], np.log2(periods))
     fxx.set_title("FFT Power", fontsize=18)
     fxx.set_ylabel("Period (min)", fontsize=18)
